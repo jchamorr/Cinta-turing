@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cinta de Turing</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Turing">
+<meta name="theme-color" content="#14161a">
+<style>
+:root{--bg:#14161a;--pn:#1d2127;--ln:#323945;--tx:#ece8df;--dim:#69717d;--ac:#ffb000;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 ui-monospace,"SF Mono",Menlo,monospace;padding:max(16px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom));max-width:640px;margin-inline:auto}
+h1{font:700 22px/1.2 ui-monospace,"SF Mono",Menlo,monospace;margin:0 0 4px}
+h2{font-size:15px;margin:22px 0 8px;color:var(--ac)}
+.sub{color:var(--dim);font-size:13px;margin:0 0 14px}
+.box{overflow-x:auto;position:relative;padding:20px 0 6px;border-block:1px solid var(--ln);scrollbar-width:none}
+#tape{display:flex;gap:4px;width:max-content}
+.c{position:relative;width:44px;height:62px;flex:none;background:var(--pn);border:1px solid var(--ln);border-radius:6px;color:var(--tx);font:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0}
+.c b{font-size:24px;font-weight:600}.c i{font-size:10px;color:var(--dim);font-style:normal}
+.c.e b{color:var(--dim);font-weight:400}
+.c.h{border:2px solid var(--ac);background:#2a2314}
+.c.h::before{content:"▼";position:absolute;top:-17px;color:var(--ac);font-size:13px}
+.st{display:flex;gap:16px;margin:10px 0 0;font-size:14px;color:var(--dim)}.st b{color:var(--tx)}
+.row{display:flex;gap:8px;margin:8px 0}
+button,input,textarea{font:inherit;color:var(--tx);background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:11px 12px;min-height:46px}
+button{cursor:pointer;flex:1}button:active{background:#2b313a}
+button.p{background:var(--ac);color:#14161a;border-color:var(--ac);font-weight:700}
+input{flex:2;min-width:0}input[type=checkbox]{min-height:0;width:18px;height:18px;flex:none;accent-color:var(--ac)}
+label{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--dim)}
+textarea{width:100%;line-height:1.5;resize:vertical}
+.hint{font-size:12.5px;color:var(--dim);margin:6px 0}
+#msg{min-height:22px;margin:8px 0;font-size:14px}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+</style>
+</head>
+<body>
+<h1>Cinta de Turing</h1>
+<p class="sub">Cinta infinita en ambos sentidos. # es la celda vacía.</p>
+
+<div class="box"><div id="tape"></div></div>
+<div class="st"><span>cabezal <b id="pos">0</b></span><span>pasos <b id="n">0</b></span></div>
+
+<h2>Editar la cinta</h2>
+<div class="row"><button id="L">◀ Izquierda</button><button id="Rt">Derecha ▶</button></div>
+<div class="row"><input id="w" placeholder="símbolo" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="p" id="wr">Escribir</button><button id="bl">Borrar #</button></div>
+<label><input type="checkbox" id="adv"> Avanzar a la derecha al escribir</label>
+<div class="row"><input id="ini" placeholder="cadena inicial, ej. 1011" autocomplete="off" autocapitalize="off" spellcheck="false"><button id="ld">Cargar</button></div>
+<p class="hint">Toca cualquier celda para mover el cabezal hasta ella.</p>
+
+<h2>Máquina de Turing</h2>
+<div class="row"><input id="st" value="q0" aria-label="Estado actual" autocapitalize="off" spellcheck="false"><button id="step">Paso</button><button class="p" id="run">Ejecutar</button></div>
+<textarea id="rules" rows="8" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Reglas">// incrementa en 1 un número binario
+q0 0 q0 0 R
+q0 1 q0 1 R
+q0 # q1 # L
+q1 1 q1 0 L
+q1 0 halt 1 S
+q1 # halt 1 S</textarea>
+<p class="hint">Una regla por línea: estado leído nuevoEstado escrito mover (L, R o S). Se detiene en <b>halt</b> o si no hay regla. Comentarios con //</p>
+<div id="msg"></div>
+<div class="row"><button id="reset">Reiniciar cinta y estado</button></div>
+
+<script>
+const $=s=>document.querySelector(s),K='turing-v1';
+let tape=new Map(),head=0,steps=0,timer=null;
+const rd=i=>tape.get(i)??'#';
+const sym=v=>[...v.trim()][0]??'#';
+const esc=s=>s.replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+const msg=t=>$('#msg').textContent=t;
+const put=c=>c==='#'?tape.delete(head):tape.set(head,c);
+
+function save(){try{localStorage[K]=JSON.stringify({t:[...tape],h:head,s:steps,q:$('#st').value,r:$('#rules').value})}catch{}}
+function draw(){
+  let h='';
+  for(let i=head-20;i<=head+20;i++)h+=`<button class="c${i===head?' h':''}${tape.has(i)?'':' e'}" data-i="${i}"><b>${esc(rd(i))}</b><i>${i}</i></button>`;
+  $('#tape').innerHTML=h;
+  const b=$('.box'),c=$('.c.h');
+  b.scrollLeft=c.offsetLeft-b.clientWidth/2+c.offsetWidth/2;
+  $('#pos').textContent=head;$('#n').textContent=steps;
+  save();
+}
+$('#tape').onclick=e=>{const c=e.target.closest('.c');if(c){head=+c.dataset.i;draw()}};
+$('#L').onclick=()=>{head--;draw()};
+$('#Rt').onclick=()=>{head++;draw()};
+$('#wr').onclick=()=>{put(sym($('#w').value));if($('#adv').checked)head++;$('#w').value='';draw();$('#w').focus()};
+$('#w').onkeydown=e=>{if(e.key==='Enter')$('#wr').click()};
+$('#bl').onclick=()=>{put('#');draw()};
+$('#ld').onclick=()=>{stop();tape.clear();[...$('#ini').value].forEach((c,i)=>{if(c!==' '&&c!=='#')tape.set(i,c)});head=0;steps=0;msg('');draw()};
+$('#reset').onclick=()=>{stop();tape.clear();head=0;steps=0;$('#st').value='q0';msg('');draw()};
+
+const rules=()=>{const m=new Map();for(const l of $('#rules').value.split('\n')){const t=l.split('//')[0].trim().split(/\s+/);if(t.length===5)m.set(t[0]+' '+t[1],t)}return m};
+function step(){
+  const q=$('#st').value.trim(),a=rd(head);
+  if(q==='halt'){msg('Máquina detenida en halt');return false}
+  const r=rules().get(q+' '+a);
+  if(!r){msg(`Sin regla para (${q}, ${a}): la máquina se detiene`);return false}
+  put(sym(r[3]));head+=r[4]==='R'?1:r[4]==='L'?-1:0;$('#st').value=r[2];steps++;
+  msg(`δ(${q}, ${a}) = (${r[2]}, ${r[3]}, ${r[4]})`+(r[2]==='halt'?'  ■ halt':''));
+  draw();return r[2]!=='halt';
+}
+function stop(){clearInterval(timer);timer=null;$('#run').textContent='Ejecutar'}
+$('#step').onclick=()=>{stop();step()};
+$('#run').onclick=()=>{if(timer)return stop();$('#run').textContent='Pausar';timer=setInterval(()=>{if(!step())stop()},300)};
+$('#rules').oninput=save;$('#st').oninput=save;
+
+let ok=false;
+try{const d=JSON.parse(localStorage[K]);tape=new Map(d.t);head=d.h;steps=d.s;$('#st').value=d.q;$('#rules').value=d.r;ok=true}catch{}
+if(!ok)[...'1011'].forEach((c,i)=>tape.set(i,c));
+draw();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
