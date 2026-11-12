@@ -53,7 +53,8 @@ textarea{width:100%;line-height:1.5;resize:vertical}
 <p class="hint">Toca cualquier celda para mover el cabezal hasta ella.</p>
 
 <h2>Máquina de Turing</h2>
-<div class="row"><input id="st" value="q0" aria-label="Estado actual" autocapitalize="off" spellcheck="false"><button id="step">Paso</button><button class="p" id="run">Ejecutar</button></div>
+<div class="row"><input id="st" value="q0" aria-label="Estado actual" autocapitalize="off" spellcheck="false"><button id="q0">Poner q0</button></div>
+<div class="row"><button id="step">Paso</button><button class="p" id="run">Ejecutar</button></div>
 <textarea id="rules" rows="8" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Reglas">// incrementa en 1 un número binario
 q0 0 q0 0 R
 q0 1 q0 1 R
@@ -104,6 +105,7 @@ function step(){
   draw();return r[2]!=='halt';
 }
 function stop(){clearInterval(timer);timer=null;$('#run').textContent='Ejecutar'}
+$('#q0').onclick=()=>{stop();$('#st').value='q0';msg('Estado puesto en q0');save()};
 $('#step').onclick=()=>{stop();step()};
 $('#run').onclick=()=>{if(timer)return stop();$('#run').textContent='Pausar';timer=setInterval(()=>{if(!step())stop()},300)};
 $('#rules').oninput=save;$('#st').oninput=save;
